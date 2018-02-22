@@ -43,8 +43,9 @@ class Replica(Process):
                         {s} - what is dis? - next slot: {self.slot_out+1}")
                 self.slot_out += 1
                 return
-        print(self.id, ": perform", self.slot_out, ":", cmd)
-        self.sendMessage("client 0.0", f"{self.slot_out}")
+        print(f"{self.id} : perform {self.slot_out} : {cmd.op}")
+        client = " ".join(cmd.op.split()[1:])
+        self.sendMessage(client, f"{self.slot_out}")
         self.slot_out += 1
 
     def body(self):

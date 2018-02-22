@@ -10,8 +10,8 @@ from replica import Replica
 from timing import Timing
 from utils import Config, Command, ReconfigCommand, WINDOW
 
-NREPLICAS=2
-NLEADERS = 2
+NREPLICAS = 1
+NLEADERS = 1
 NCONFIGS = 2
 
 
@@ -50,7 +50,7 @@ class Env:
             initialconfig.leaders.append(pid)
         for i in range(self.num_conc_clients):
             pid = f"client {c}.{i}"
-            Client(self, pid, initialconfig.replicas)
+            Client(self, pid, initialconfig.replicas, 10)
 
         '''
         for c in range(1, NCONFIGS):
@@ -109,4 +109,5 @@ if __name__ == '__main__':
                         help="Number of concurrently proposing clients")
 
     args = parser.parse_args()
-    main(args.size, args.concurrency)
+    with Timing("Total time to run shits"):
+        main(args.size, args.concurrency)
