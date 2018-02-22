@@ -38,12 +38,13 @@ class Replica(Process):
                         decisions at slot {s} - next slot: {self.slot_out+1}")
                 self.slot_out += 1
                 return
-        if isinstance(cmd, ReconfigCommand):
-            print(f"Current slot: {self.slot_out}. Got a reconfig command at\
-                    {s} - what is dis? - next slot: {self.slot_out+1}")
-            self.slot_out += 1
-            return
+            if isinstance(cmd, ReconfigCommand):
+                print(f"Current slot: {self.slot_out}. Got a reconfig command at\
+                        {s} - what is dis? - next slot: {self.slot_out+1}")
+                self.slot_out += 1
+                return
         print(self.id, ": perform", self.slot_out, ":", cmd)
+        self.sendMessage("client 0.0", f"{self.slot_out}")
         self.slot_out += 1
 
     def body(self):

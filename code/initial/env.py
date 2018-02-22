@@ -1,6 +1,8 @@
 import signal
 import sys
 import time
+from argparse import ArgumentParser
+from client import Client
 from acceptor import Acceptor
 from leader import Leader
 from message import RequestMessage
@@ -8,18 +10,16 @@ from replica import Replica
 from timing import Timing
 from utils import Config, Command, ReconfigCommand, WINDOW
 
-NACCEPTORS = 3
-NREPLICAS = 2
+NREPLICAS=2
 NLEADERS = 2
-NREQUESTS = 10
 NCONFIGS = 2
 
 
 class Env:
-    def __init__(self, max_clients=NREQUESTS):
-        self.max_clients = max_clients
+    def __init__(self, quorum_size, num_conc_clients):
+        self.num_conc_clients = num_conc_clients
+        self.quorum_size = quorum_size
         self.procs = {}
-        print(("Max clients: {}".format(self.max_clients)))
 
     def sendMessage(self, dst, msg):
         if dst in self.procs:
@@ -40,7 +40,7 @@ class Env:
             pid = "replica %d" % i
             Replica(self, pid, initialconfig)
             initialconfig.replicas.append(pid)
-        for i in range(NACCEPTORS):
+        for i in range(self.quorum_size):
             pid = "acceptor %d.%d" % (c, i)
             Acceptor(self, pid)
             initialconfig.acceptors.append(pid)
@@ -48,18 +48,16 @@ class Env:
             pid = "leader %d.%d" % (c, i)
             Leader(self, pid, initialconfig)
             initialconfig.leaders.append(pid)
-        for i in range(self.max_clients):
-            pid = "client %d.%d" % (c, i)
-            for r in initialconfig.replicas:
-                cmd = Command(pid, 0, "operation %d.%d" % (c, i))
-                self.sendMessage(r, RequestMessage(pid, cmd))
-                time.sleep(1)
+        for i in range(self.num_conc_clients):
+            pid = f"client {c}.{i}"
+            Client(self, pid, initialconfig.replicas)
 
+        '''
         for c in range(1, NCONFIGS):
             print(("\nConfig: {}".format(c)))
             # Create new configuration
             config = Config(initialconfig.replicas, [], [])
-            for i in range(NACCEPTORS):
+            for i in range(self.quorum_size):
                 pid = "acceptor %d.%d" % (c, i)
                 Acceptor(self, pid)
                 config.acceptors.append(pid)
@@ -79,14 +77,9 @@ class Env:
                     cmd = Command(pid, 0, "operation noop")
                     self.sendMessage(r, RequestMessage(pid, cmd))
                     time.sleep(1)
-            for i in range(self.max_clients):
-                pid = "client %d.%d" % (c, i)
-                print(pid)
-                for r in config.replicas:
-                    cmd = Command(pid, 0, "operation %d.%d" % (c, i))
-                    self.sendMessage(r, RequestMessage(pid, cmd))
-                    time.sleep(1)
-            print("Shits")
+            #for i in range(self.num_conc_clients):
+                #Client(self, i, c, config.replicas)
+        '''
 
     def terminate_handler(self, signal, frame):
         self._graceexit()
@@ -97,8 +90,8 @@ class Env:
         return
 
 
-def main(max_clients):
-    e = Env(max_clients)
+def main(quorum_size, num_conc_clients):
+    e = Env(quorum_size, num_conc_clients)
     with Timing("kake"):
         e.run()
         signal.signal(signal.SIGINT, e.terminate_handler)
@@ -109,9 +102,11 @@ def main(max_clients):
 
 
 if __name__ == '__main__':
-    print(("{}".format(sys.argv)))
-    if len(sys.argv) < 2:
-        print(("{} size=<size>".format(sys.argv[0])))
-        sys.exit(0)
-    else:
-        main(int(sys.argv[1].split("=")[1]))
+    parser = ArgumentParser(description="Run a Paxos cluster")
+    parser.add_argument("-s", "--size", type=int, default=3,
+                        help="Size of the Paxos cluster quorum")
+    parser.add_argument("-c", "--concurrency", type=int, default=1,
+                        help="Number of concurrently proposing clients")
+
+    args = parser.parse_args()
+    main(args.size, args.concurrency)
