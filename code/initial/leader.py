@@ -6,16 +6,19 @@ from message import ProposeMessage, AdoptedMessage, PreemptedMessage
 
 
 class Leader(Process):
-    def __init__(self, env, id, config):
+    def __init__(self, env, id, config, verbose):
         Process.__init__(self, env, id)
         self.ballot_number = BallotNumber(0, self.id)
         self.active = False
+        self.verbose = verbose
         self.proposals = {}
         self.config = config
         self.env.addProc(self)
 
     def body(self):
-        print("Here I am: ", self.id)
+        if self.verbose:
+            print("Here I am: ", self.id)
+
         Scout(self.env, f"scout:{self.id}:{self.ballot_number}",
               self.id, self.config.acceptors, self.ballot_number)
         while True:

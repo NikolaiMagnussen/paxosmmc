@@ -1,24 +1,22 @@
 import signal
 import sys
-import time
 from argparse import ArgumentParser
 from client import Client
 from acceptor import Acceptor
 from leader import Leader
-from message import RequestMessage
 from replica import Replica
-from timing import Timing
-from utils import Config, Command, ReconfigCommand, WINDOW
+from utils import Config
 
 NREPLICAS = 1
 NLEADERS = 1
-NCONFIGS = 2
+NREQUESTS = 10
 
 
 class Env:
-    def __init__(self, quorum_size, num_conc_clients):
-        self.num_conc_clients = num_conc_clients
+    def __init__(self, quorum_size, conc_clients, verbose):
+        self.conc_clients = conc_clients
         self.quorum_size = quorum_size
+        self.verbose = verbose
         self.procs = {}
 
     def sendMessage(self, dst, msg):
@@ -38,48 +36,20 @@ class Env:
 
         for i in range(NREPLICAS):
             pid = "replica %d" % i
-            Replica(self, pid, initialconfig)
+            Replica(self, pid, initialconfig, self.conc_clients * NREQUESTS,
+                    self.verbose)
             initialconfig.replicas.append(pid)
         for i in range(self.quorum_size):
             pid = "acceptor %d.%d" % (c, i)
-            Acceptor(self, pid)
+            Acceptor(self, pid, self.verbose)
             initialconfig.acceptors.append(pid)
         for i in range(NLEADERS):
             pid = "leader %d.%d" % (c, i)
-            Leader(self, pid, initialconfig)
+            Leader(self, pid, initialconfig, self.verbose)
             initialconfig.leaders.append(pid)
-        for i in range(self.num_conc_clients):
+        for i in range(self.conc_clients):
             pid = f"client {c}.{i}"
-            Client(self, pid, initialconfig.replicas, 10)
-
-        '''
-        for c in range(1, NCONFIGS):
-            print(("\nConfig: {}".format(c)))
-            # Create new configuration
-            config = Config(initialconfig.replicas, [], [])
-            for i in range(self.quorum_size):
-                pid = "acceptor %d.%d" % (c, i)
-                Acceptor(self, pid)
-                config.acceptors.append(pid)
-            for i in range(NLEADERS):
-                pid = "leader %d.%d" % (c, i)
-                Leader(self, pid, config)
-                config.leaders.append(pid)
-            # Send reconfiguration request
-            for r in config.replicas:
-                pid = "master %d.%d" % (c, i)
-                cmd = ReconfigCommand(pid, 0, str(config))
-                self.sendMessage(r, RequestMessage(pid, cmd))
-                time.sleep(1)
-            for i in range(WINDOW-1):
-                pid = "master %d.%d" % (c, i)
-                for r in config.replicas:
-                    cmd = Command(pid, 0, "operation noop")
-                    self.sendMessage(r, RequestMessage(pid, cmd))
-                    time.sleep(1)
-            #for i in range(self.num_conc_clients):
-                #Client(self, i, c, config.replicas)
-        '''
+            Client(self, pid, initialconfig.replicas, NREQUESTS, self.verbose)
 
     def terminate_handler(self, signal, frame):
         self._graceexit()
@@ -90,15 +60,13 @@ class Env:
         return
 
 
-def main(quorum_size, num_conc_clients):
-    e = Env(quorum_size, num_conc_clients)
-    with Timing("kake"):
-        e.run()
-        signal.signal(signal.SIGINT, e.terminate_handler)
-        signal.signal(signal.SIGTERM, e.terminate_handler)
-        print("Waiting for processes to finish")
-        signal.pause()
-    print("\nJeg er ferdig!\n")
+def main(quorum_size, conc_clients, verbose):
+    e = Env(quorum_size, conc_clients, verbose)
+    e.run()
+
+    signal.signal(signal.SIGINT, e.terminate_handler)
+    signal.signal(signal.SIGTERM, e.terminate_handler)
+    signal.pause()
 
 
 if __name__ == '__main__':
@@ -107,7 +75,8 @@ if __name__ == '__main__':
                         help="Size of the Paxos cluster quorum")
     parser.add_argument("-c", "--concurrency", type=int, default=1,
                         help="Number of concurrently proposing clients")
+    parser.add_argument("--verbose", help="Increase output verbosity",
+                        action="store_true")
 
     args = parser.parse_args()
-    with Timing("Total time to run shits"):
-        main(args.size, args.concurrency)
+    main(args.size, args.concurrency, args.verbose)

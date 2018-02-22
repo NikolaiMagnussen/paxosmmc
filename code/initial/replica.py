@@ -1,12 +1,16 @@
 from process import Process
+from timing import Timing
 from message import ProposeMessage, DecisionMessage, RequestMessage
 from utils import WINDOW, ReconfigCommand, Config
 
 
 class Replica(Process):
-    def __init__(self, env, id, config):
+    def __init__(self, env, id, config, total_requests, verbose):
         Process.__init__(self, env, id)
         self.slot_in = self.slot_out = 1
+        self.total_requests = total_requests
+        self.num_performed = 0
+        self.verbose = verbose
         self.proposals = {}
         self.decisions = {}
         self.requests = []
@@ -34,35 +38,38 @@ class Replica(Process):
     def perform(self, cmd):
         for s in range(1, self.slot_out):
             if self.decisions[s] == cmd:
-                print(f"Current slot: {self.slot_out}. {cmd} is already in the\
-                        decisions at slot {s} - next slot: {self.slot_out+1}")
                 self.slot_out += 1
                 return
             if isinstance(cmd, ReconfigCommand):
-                print(f"Current slot: {self.slot_out}. Got a reconfig command at\
-                        {s} - what is dis? - next slot: {self.slot_out+1}")
                 self.slot_out += 1
                 return
-        print(f"{self.id} : perform {self.slot_out} : {cmd.op}")
+
+        if self.verbose:
+            print(f"{self.id} : perform {self.slot_out} : {cmd.op}")
         client = " ".join(cmd.op.split()[1:])
         self.sendMessage(client, f"{self.slot_out}")
         self.slot_out += 1
+        self.num_performed += 1
 
     def body(self):
-        print("Here I am: ", self.id)
-        while True:
-            msg = self.getNextMessage()
-            if isinstance(msg, RequestMessage):
-                self.requests.append(msg.command)
-            elif isinstance(msg, DecisionMessage):
-                self.decisions[msg.slot_number] = msg.command
-                while self.slot_out in self.decisions:
-                    if self.slot_out in self.proposals:
-                        if self.proposals[self.slot_out] !=\
-                           self.decisions[self.slot_out]:
-                            self.requests.append(self.proposals[self.slot_out])
-                        del self.proposals[self.slot_out]
-                    self.perform(self.decisions[self.slot_out])
-            else:
-                print("Replica: unknown msg type")
-            self.propose()
+        if self.verbose:
+            print("Here I am: ", self.id)
+
+        with Timing(f"Time to perform {self.total_requests}"):
+            while self.num_performed < self.total_requests:
+                msg = self.getNextMessage()
+                if isinstance(msg, RequestMessage):
+                    self.requests.append(msg.command)
+                elif isinstance(msg, DecisionMessage):
+                    self.decisions[msg.slot_number] = msg.command
+                    while self.slot_out in self.decisions:
+                        if self.slot_out in self.proposals:
+                            if self.proposals[self.slot_out] !=\
+                               self.decisions[self.slot_out]:
+                                self.requests.append(
+                                        self.proposals[self.slot_out])
+                            del self.proposals[self.slot_out]
+                        self.perform(self.decisions[self.slot_out])
+                else:
+                    print("Replica: unknown msg type")
+                self.propose()

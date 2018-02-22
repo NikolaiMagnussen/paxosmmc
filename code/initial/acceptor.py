@@ -4,14 +4,17 @@ from message import P1aMessage, P1bMessage, P2aMessage, P2bMessage
 
 
 class Acceptor(Process):
-    def __init__(self, env, id):
+    def __init__(self, env, id, verbose):
         Process.__init__(self, env, id)
         self.ballot_number = None
+        self.verbose = verbose
         self.accepted = set()
         self.env.addProc(self)
 
     def body(self):
-        print("Here I am: ", self.id)
+        if self.verbose:
+            print("Here I am: ", self.id)
+
         while True:
             msg = self.getNextMessage()
             if isinstance(msg, P1aMessage):
