@@ -1,5 +1,5 @@
+import time
 from process import Process
-from timing import Timing
 from message import ProposeMessage, DecisionMessage, RequestMessage
 from utils import WINDOW, ReconfigCommand, Config
 
@@ -9,6 +9,7 @@ class Replica(Process):
         Process.__init__(self, env, id)
         self.slot_in = self.slot_out = 1
         self.total_requests = total_requests
+        self.difference = None
         self.num_performed = 0
         self.verbose = verbose
         self.proposals = {}
@@ -55,21 +56,27 @@ class Replica(Process):
         if self.verbose:
             print("Here I am: ", self.id)
 
-        with Timing(f"Time to perform {self.total_requests}"):
-            while self.num_performed < self.total_requests:
-                msg = self.getNextMessage()
-                if isinstance(msg, RequestMessage):
-                    self.requests.append(msg.command)
-                elif isinstance(msg, DecisionMessage):
-                    self.decisions[msg.slot_number] = msg.command
-                    while self.slot_out in self.decisions:
-                        if self.slot_out in self.proposals:
-                            if self.proposals[self.slot_out] !=\
-                               self.decisions[self.slot_out]:
-                                self.requests.append(
-                                        self.proposals[self.slot_out])
-                            del self.proposals[self.slot_out]
-                        self.perform(self.decisions[self.slot_out])
-                else:
-                    print("Replica: unknown msg type")
-                self.propose()
+        start_time = time.perf_counter()
+        while self.num_performed < self.total_requests:
+            msg = self.getNextMessage()
+            if isinstance(msg, RequestMessage):
+                self.requests.append(msg.command)
+            elif isinstance(msg, DecisionMessage):
+                self.decisions[msg.slot_number] = msg.command
+                while self.slot_out in self.decisions:
+                    if self.slot_out in self.proposals:
+                        if self.proposals[self.slot_out] !=\
+                           self.decisions[self.slot_out]:
+                            self.requests.append(
+                                    self.proposals[self.slot_out])
+                        del self.proposals[self.slot_out]
+                    self.perform(self.decisions[self.slot_out])
+            else:
+                print("Replica: unknown msg type")
+            self.propose()
+
+        self.difference = time.perf_counter() - start_time
+        print(f"{self.id} completed {self.total_requests} requests in "
+              f"{self.difference:.3f}s")
+        while True:
+            time.sleep(1)

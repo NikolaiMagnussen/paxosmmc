@@ -1,5 +1,5 @@
-import signal
 import sys
+import time
 from argparse import ArgumentParser
 from client import Client
 from acceptor import Acceptor
@@ -25,6 +25,7 @@ class Env:
 
     def addProc(self, proc):
         self.procs[proc.id] = proc
+        proc.daemon = True
         proc.start()
 
     def removeProc(self, pid):
@@ -51,22 +52,21 @@ class Env:
             pid = f"client {c}.{i}"
             Client(self, pid, initialconfig.replicas, NREQUESTS, self.verbose)
 
-    def terminate_handler(self, signal, frame):
-        self._graceexit()
-
-    def _graceexit(self, exitcode=0):
-        sys.stdout.flush()
-        sys.stderr.flush()
-        return
+        completed = False
+        while not completed:
+            completed = True
+            for i in range(NREPLICAS):
+                if self.procs[initialconfig.replicas[i]].difference is None:
+                    completed = False
+            time.sleep(1)
 
 
 def main(quorum_size, conc_clients, verbose):
     e = Env(quorum_size, conc_clients, verbose)
     e.run()
-
-    signal.signal(signal.SIGINT, e.terminate_handler)
-    signal.signal(signal.SIGTERM, e.terminate_handler)
-    signal.pause()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.exit()
 
 
 if __name__ == '__main__':
