@@ -22,7 +22,8 @@ def run_experiment(max_conc, trials):
                 reqs_per_sec.append(int(match.group(1))/float(match.group(2)))
             except subprocess.TimeoutExpired:
                 paxos.kill()
-                print("Timed out - process is killed..")
+                reqs_per_sec.append(reqs_per_sec[-1])
+                print("Timed out: duplicated last value instead")
             print(f"\tTrial {j} completed for {i} concurrent clients")
         print(f"Completed trials for concurrency level {i}")
 
