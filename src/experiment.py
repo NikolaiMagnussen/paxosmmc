@@ -3,6 +3,7 @@ import subprocess
 import re
 import numpy as np
 import matplotlib.pyplot as plot
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 def run_experiment(max_conc, trials):
@@ -24,10 +25,8 @@ def run_experiment(max_conc, trials):
                 paxos.kill()
                 reqs_per_sec.append(reqs_per_sec[-1])
                 print("Timed out: duplicated last value instead")
-            print(f"\tTrial {j} completed for {i} concurrent clients")
+            print(f"\tTrial {j+1} completed for {i} concurrent clients")
         print(f"Completed trials for concurrency level {i}")
-
-    print(f"Got {len(reqs_per_sec)} samples: {reqs_per_sec}")
 
     return reqs_per_sec
 
@@ -48,9 +47,6 @@ def calculate_statistics(data):
 def plot_statistics(means, stds):
     print("Plotting the statistics!")
 
-    # Set XKCD mode graph
-    plot.xkcd()
-
     # Plot data
     xs = np.linspace(1, len(means), num=len(means))
     plot.errorbar(xs, means, yerr=stds)
@@ -58,7 +54,10 @@ def plot_statistics(means, stds):
     plot.title("Paxos throughput as a function of concurrent clients")
     plot.xlabel("Number of concurrent clients")
     plot.ylabel("Number of requests per second")
-    plot.show()
+
+    # Save figure as pdf
+    with PdfPages("result.pdf") as pdf:
+        pdf.savefig()
 
 
 def main():
